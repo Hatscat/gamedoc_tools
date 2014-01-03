@@ -26,6 +26,7 @@ THE SOFTWARE.
 (function ()
 {
 	var m = {
+		e: null,
 		x: 0,
 		y: 0,
 		oldX: 0,
@@ -38,6 +39,7 @@ THE SOFTWARE.
 	}	
 	window.onmousemove = function (e)
 	{
+		m.e = e;
 		m.oldX = m.x;
 		m.oldY = m.y;
 		m.x = e.x;
@@ -47,16 +49,19 @@ THE SOFTWARE.
 	}
 	window.onmousedown = function (e)
 	{
+		m.e = e;
 		m.pressed = true;
 		m.target.x = e.x;
 		m.target.y = e.y;
 	}
 	window.onmouseup = function (e)
 	{
+		m.e = e;
 		m.pressed = false;
 	}
 	window.ondblclick = function (e)
 	{
+		m.e = e;
 		m.doubleClicks = true;
 	}
 	window.mouse = m;

@@ -24,6 +24,7 @@ THE SOFTWARE.
 */
 
 float quality = 0.5; /* ------------- à paramétrer entre 0 et 1 ------------- */
+int maxHeight = 20; /* ------------- à paramétrer entre 1 et 1000 ------------- */
 
 JSONObject json;
 JSONArray px_columns;
@@ -54,8 +55,12 @@ void fileSelected (File selection)
         JSONArray px_rows = new JSONArray();
         for (int j = int(map_picture.height * quality); j-->0;)
         {
-          float px_value = red(pixels[int((i + j*map_picture.width) / quality)]);
-          px_rows.setFloat(j, px_value);
+          int pos = int((i + j * map_picture.width) / quality);
+          float r = red(pixels[pos]) / 255.0;
+          float g = green(pixels[pos]) / 255.0;
+          float b = blue(pixels[pos]) / 255.0;
+          float gradient = r * 0.3 + g * 0.59 + b * 0.11;
+          px_rows.setFloat(j, gradient * maxHeight);
         }
         px_columns.setJSONArray(i, px_rows);
       }
