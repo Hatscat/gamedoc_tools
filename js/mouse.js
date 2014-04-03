@@ -36,8 +36,8 @@ THE SOFTWARE.
 		pressed: false,
 		doubleClicks: false,
 		target: { x:0, y:0 }
-	}	
-	window.onmousemove = function (e)
+	}
+	addEventListener('mousemove', function (e)
 	{
 		m.e = e;
 		m.oldX = m.x;
@@ -46,23 +46,23 @@ THE SOFTWARE.
 		m.y = e.y;
 		m.moveX = m.x == m.oldX ? 0 : m.x < m.oldX ? -1 : 1;
 		m.moveY = m.y == m.oldY ? 0 : m.y < m.oldY ? -1 : 1;
-	}
-	window.onmousedown = function (e)
+	});
+	addEventListener('mousedown', function (e)
 	{
 		m.e = e;
 		m.pressed = true;
 		m.target.x = e.x;
 		m.target.y = e.y;
-	}
-	window.onmouseup = function (e)
+	});
+	addEventListener('mouseup', function (e)
 	{
 		m.e = e;
 		m.pressed = false;
-	}
-	window.ondblclick = function (e)
+	});
+	addEventListener('dblclick', function (e)
 	{
 		m.e = e;
 		m.doubleClicks = true;
-	}
+	});
 	window.mouse = m;
 })()

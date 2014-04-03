@@ -1,5 +1,5 @@
 /* return a complete data array with all Y coords */
-function extractDataFromHeightMap (url, maxHeight, callback)
+function extractDataFromHeightMap (url, maxHeight,id, callback)
 {
 	var img = new Image();
 
@@ -34,7 +34,7 @@ function extractDataFromHeightMap (url, maxHeight, callback)
 				data[i / (heightMapWidth * 4)].push(gradient * maxHeight);
 			}
 		}
-		callback(data);
+		callback(data, id);
 	}
 	img.src = url;
 }
@@ -42,7 +42,9 @@ function extractDataFromHeightMap (url, maxHeight, callback)
 // create a ground mesh from heightmap data
 function createGroundFromData (name, data, width, height, subdivisions, scene, updatable)
 {
-	var ground = new BABYLON.Mesh(name, scene);
+	var ground = {};
+	ground.data = [];
+	ground.mesh = new BABYLON.Mesh(name, scene);
 	var indices = [];
 	var positions = [];
 	var normals = [];
@@ -57,8 +59,10 @@ function createGroundFromData (name, data, width, height, subdivisions, scene, u
 			var position = new BABYLON.Vector3((col * width) / subdivisions - (width / 2.0), 0, ((subdivisions - row) * height) / subdivisions - (height / 2.0));
 
 			// Compute height
-			position.y = getPosY(position.x, position.z, data, width, height);
-
+			position.y = getPosOnHeightMap(position.x, position.z, data, width, height).y;
+			
+			ground.data.push(position);
+			
 			// Add  vertex
 			positions.push(position.x, position.y, position.z);
 			normals.push(0, 0, 0);
@@ -85,19 +89,85 @@ function createGroundFromData (name, data, width, height, subdivisions, scene, u
 	BABYLON.Mesh.ComputeNormal(positions, normals, indices);
 
 	// Transfer
-	ground.setVerticesData(positions, BABYLON.VertexBuffer.PositionKind, updatable);
-	ground.setVerticesData(normals, BABYLON.VertexBuffer.NormalKind, updatable);
-	ground.setVerticesData(uvs, BABYLON.VertexBuffer.UVKind, updatable);
-	ground.setIndices(indices);
+	ground.mesh.setVerticesData(positions, BABYLON.VertexBuffer.PositionKind, updatable);
+	ground.mesh.setVerticesData(normals, BABYLON.VertexBuffer.NormalKind, updatable);
+	ground.mesh.setVerticesData(uvs, BABYLON.VertexBuffer.UVKind, updatable);
+	ground.mesh.setIndices(indices);
 
 	return ground;
 }
 
-// return height (y coord) from x and z positions with the heightmap data array
-function getPosY (x, z, data, width, height)
+function normalize (distanceX, distanceZ)
 {
-	var heightMapX = (((x + width / 2) / width) * (data.length - 1)) | 0;
-	var heightMapY = ((1.0 - (z + height / 2) / height) * (data[0].length - 1)) | 0;
+	var normalisationRatio = Math.abs(distanceX) + Math.abs(distanceZ);
+	normalisationRatio = normalisationRatio ? normalisationRatio : 1;
+	return { x: distanceX / normalisationRatio, z: distanceZ / normalisationRatio };
+}
 
-	return heightMapX < 0 || heightMapX >= data.length || heightMapY < 0 || heightMapY >= data[0].length ? 0 : data[heightMapX][heightMapY];
+// return coords from x and z positions with the heightmap data array
+function getPosOnHeightMap (x, z, mapData, width, height)
+{
+	var pos = {};
+	
+	pos.x = (((x + width / 2) / width) * (mapData.length - 1)) | 0;
+	pos.z = ((1.0 - (z + height / 2) / height) * (mapData[0].length - 1)) | 0;
+
+	if (pos.x < 0 || pos.x >= mapData.length || pos.z < 0 || pos.z >= mapData[0].length)
+		return 0;
+	else
+		pos.y = mapData[pos.x][pos.z];
+	return pos;
+}
+
+function getYPosOnMesh (x, z, meshData, width, height, subdivisions) // --------------------------- NEW
+{	
+	var s = subdivisions + 1;
+	// var p = { x: x, z: z }; // pour calculer les distances, si besoin
+	var margin = 50 / subdivisions;
+	var x_in_array = (x + 25) / margin;
+	var z_in_array = (25 - z) / margin;
+	var floor_x_in_array = x_in_array | 0; // + 0.5 si on doit chercher le + proche
+	var floor_z_in_array = z_in_array | 0;
+	var ratio_x = x_in_array - floor_x_in_array;
+	var ratio_z = z_in_array - floor_z_in_array;
+	var inv_ratio_x = 1 - ratio_x;
+	var inv_ratio_z = 1 - ratio_z;
+	var xz_pos_1 = floor_x_in_array + floor_z_in_array * s;
+	var xz_pos_2 = xz_pos_1 + 1;
+
+	var xz_point_top_left	= meshData[xz_pos_1]; // WARNING
+	var xz_point_top_right	= meshData[xz_pos_2];
+	var xz_point_bot_left	= meshData[xz_pos_1 + s];
+	var xz_point_bot_right	= meshData[xz_pos_2 + s];
+
+	var xz_value_top_left	= inv_ratio_x * inv_ratio_z * xz_point_top_left.y;
+	var xz_value_top_right	= inv_ratio_x * ratio_z * xz_point_top_right.y;
+	var xz_value_bot_left	= ratio_x * inv_ratio_z * xz_point_bot_left.y;
+	var xz_value_bot_right	= ratio_x * ratio_z * xz_point_bot_right.y;
+	
+	return xz_value_top_left + xz_value_top_right + xz_value_bot_left + xz_value_bot_right;
+}
+
+function getYFromMesh (scene, player_pos, ground_mesh)
+{
+	var origin = new BABYLON.Vector3(player_pos.x, player_pos.y + 50, player_pos.z);
+	var direction = new BABYLON.Vector3(player_pos.x, player_pos.y - 50, player_pos.z);
+	var distance = direction.length();
+	direction.normalize();
+	var ray = new BABYLON.Ray(origin, direction);
+	var pickInfo = scene.pickWithRay(ray, function(m){return m == ground_mesh}, 1);
+	//console.log(pickInfo);
+	return pickInfo.pickedPoint.y;
+}
+
+function marginRound (number, margin)  // -------------------------------------- NEW
+{
+	return (number / margin | 0) * margin;
+}
+
+function distanceCarre (a, b)
+{
+	var x = a.x - b.x;
+	var z = a.z - b.z;
+	return x * x + z * z;
 }
